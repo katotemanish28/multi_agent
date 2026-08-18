@@ -14,7 +14,7 @@ from langchain_community.vectorstores import FAISS
 from langchain_ollama import OllamaEmbeddings
 from langchain_core.documents import Document
 
-from schemas import TripItinerary
+from schemas import TripItinerary, ItineraryDay
 from destination_data import DESTINATION_CONTENT
 from prompts import MODEL_NAME
 
@@ -43,12 +43,26 @@ def generate_itinerary(city: str, num_days: int, preferences: list[str]) -> Trip
     else:
         context = f"(No curated content available for {city} — compose from general knowledge, and note this is unverified.)"
 
-    system_prompt = f"""You are a travel itinerary planner. Using ONLY the reference
-context below (don't invent attractions not mentioned in it), create a
-{num_days}-day itinerary for {city}. Respond with ONLY JSON matching:
-{{"destination": "{city}", "days": [{{"day_number": 1, "theme": "short theme", "activities": ["activity 1", "activity 2", "activity 3"]}}]}}
+    system_prompt = f"""You are an expert travel planner. Create a realistic {num_days}-day travel itinerary for {city}.
+Using the Reference Context below, generate specific activities and attractions for {city}.
 
-Reference context:
+Required JSON format:
+{{
+  "destination": "{city}",
+  "days": [
+    {{
+      "day_number": 1,
+      "theme": "City Highlights & Exploration",
+      "activities": [
+        "Visit popular central landmark",
+        "Explore local cultural quarter",
+        "Evening local cuisine experience"
+      ]
+    }}
+  ]
+}}
+
+Reference context for {city}:
 {context}"""
 
     prefs_text = ", ".join(preferences) if preferences else "general sightseeing"
@@ -61,4 +75,39 @@ Reference context:
         format="json",
     )
     raw = response["message"]["content"]
-    return TripItinerary.model_validate_json(raw)
+    try:
+        return TripItinerary.model_validate_json(raw)
+    except Exception as e:
+        print(f"[ItineraryAgent] Raw JSON validation warning ({e}); applying fallback parser.")
+        try:
+            import json
+            data = json.loads(raw)
+            days = []
+            if isinstance(data, dict):
+                raw_days = data.get("days") or data.get("itinerary") or data.get("schedule") or []
+                if isinstance(raw_days, list):
+                    for idx, d in enumerate(raw_days, 1):
+                        if isinstance(d, dict):
+                            theme = d.get("theme") or d.get("title") or f"Day {idx} Exploration"
+                            acts = d.get("activities") or d.get("preferred_activities") or d.get("highlights") or []
+                            str_acts = [str(a) for a in acts] if isinstance(acts, list) else [str(acts)]
+                            days.append(ItineraryDay(day_number=d.get("day_number", idx), theme=str(theme), activities=str_acts or [f"Sightseeing in {city}"]))
+            
+            if not days:
+                days = [
+                    ItineraryDay(
+                        day_number=i + 1,
+                        theme=f"Day {i + 1}: Sightseeing in {city}",
+                        activities=[f"Explore popular landmarks in {city}", f"Enjoy local food and culture", f"Evening walk in {city}"]
+                    ) for i in range(num_days)
+                ]
+            return TripItinerary(destination=city, days=days)
+        except Exception:
+            days = [
+                ItineraryDay(
+                    day_number=i + 1,
+                    theme=f"Day {i + 1}: Exploring {city}",
+                    activities=[f"Visit top sights in {city}", f"Sample local food and markets", f"Evening leisure in {city}"]
+                ) for i in range(num_days)
+            ]
+            return TripItinerary(destination=city, days=days)

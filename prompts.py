@@ -7,7 +7,7 @@ notes / README_DAY1.md.
 """
 import datetime
  
-MODEL_NAME = "llama3.1:8b"
+MODEL_NAME = "qwen2.5:0.5b"
  
  
 def build_intent_system_prompt() -> str:

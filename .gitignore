@@ -29,3 +29,12 @@ scratch/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Terraform
+.terraform/
+infra/.terraform/
+**/.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+crash.log
