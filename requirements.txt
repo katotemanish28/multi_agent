@@ -1,0 +1,12 @@
+requests
+python-dotenv
+pydantic>=2.0
+ollama
+langchain
+langchain-community
+langgraph
+faiss-cpu
+fastapi
+uvicorn
+streamlit
+langchain-ollama
