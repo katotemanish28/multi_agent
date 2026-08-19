@@ -1,0 +1,40 @@
+name: Deploy Travel Agent
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::842761392196:role/travel-agent-github-deploy
+          aws-region: ap-south-1
+
+      - name: Deploy through SSM
+        run: |
+          aws ssm send-command \
+            --instance-ids "i-0ea02dfdc54a7614b" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Deploy Travel Agent" \
+            --parameters 'commands=[
+              "cd /opt/travel-agent",
+              "git fetch origin",
+              "git reset --hard origin/main",
+              "/opt/travel-agent/venv/bin/pip install -r requirements.txt",
+              "sudo systemctl restart travel-agent",
+              "sudo systemctl is-active travel-agent"
+            ]'
